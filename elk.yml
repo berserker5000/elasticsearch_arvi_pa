@@ -1,0 +1,70 @@
+version: '3.5'
+
+volumes:
+  mongo_data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: addr=172.28.27.212,nolock,soft,rw,vers=4.0
+      device: :/mnt/Data/nfsshare/PA/dev3/mongo_data
+  elk_data:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: addr=172.28.27.212,nolock,soft,rw,vers=4.0
+      device: :/mnt/Data/nfsshare/PA/dev3/elk_data
+  wine:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: addr=172.28.27.212,nolock,soft,rw,vers=4.0
+      device: :/mnt/Data/nfsshare/PA/dev3/wine
+  esbcp:
+    driver: local
+    driver_opts:
+      type: "nfs"
+      o: addr=172.28.27.212,nolock,soft,rw,vers=4.1
+      device: :/mnt/Data/nfsshare/PA/dev3/elk_bcp/
+
+networks:
+  python-app:
+    driver: overlay
+    driver_opts:
+      encrypted: "false"
+    ipam:
+      config:
+        - subnet: 10.10.16.0/24
+
+services: 
+  pa_elasticsearch:
+      image: berserker5000/elasticsearch_arvi_pa:latest
+      hostname: elasticsearch
+      deploy:
+        replicas: 1
+        resources:
+          limits:
+            cpus: "2"
+            memory: 4G
+        restart_policy:
+          condition: on-failure
+      volumes:
+        - type: volume
+          source: elk_data
+          target: /usr/share/elasticsearch/data
+          volume:
+            nocopy: true
+        - type: volume
+          source: esbcp
+          target: /usr/share/elasticsearch/backups
+      networks:
+        python-app:
+   
+  python:
+    image: berserker5000/elk_backup_python:2.3.0
+    networks:
+        python-app:
+    environment:
+        CRON_SCHEDULE: "*/2 * * * *"
+        es_host: "pa_elasticsearch"
+        indices: "*"
+        repository_name: "elk_backup"
